@@ -1,0 +1,16 @@
+# i hate macos
+.DS_Store
+
+# binary leftovers
+*.dSYM/
+*.dylib
+*.so
+*.dll
+*.exe
+
+# output sample binaries
+samples/discovery/lifx_discovery*
+
+# script file leftovers
+scripts/products.json
+scripts/products.txt
