@@ -7,8 +7,8 @@
 #include <sys/time.h>
 
 #include "lifx_products.h"
-#include "lifx_protocol.h"
 #include "lifx_internal.h"
+#include "lifx_protocol.h"
 #include <lifx.h>
 
 static lifx_device_t devices[LIFX_MAX_DEVICE_COUNT];
@@ -86,13 +86,25 @@ void lifx_init(lifx_send_packet_t send_packet, lifx_device_update_t device_updat
     source_value = rand();
 }
 
+void lifx_flip_header(lifx_header_t *header)
+{
+#ifdef LIFX_BIG_ENDIAN
+    header->frame.size = LE16(header->frame.size);
+    header->frame.source = LE(header->frame.source);
+    header->protocol.type = LE16(header->protocol.type);
+    // HACK - is there a better way to do this?
+    ((uint16_t *)header)[1] = LE16(((uint16_t *)header)[1]);
+#endif
+}
+
 void lifx_send_packet(lifx_device_t *target_device, uint16_t packet_type, void *extra_data, size_t extra_size)
 {
     uint8_t packet_data[LIFX_MAX_PACKET_SIZE];
     lifx_header_t *lifx_packet = (lifx_header_t *)packet_data;
+    size_t packet_size = sizeof(lifx_header_t) + extra_size;
 
     memset(lifx_packet, 0, sizeof(lifx_header_t));
-    lifx_packet->frame.size = sizeof(lifx_header_t) + extra_size;
+    lifx_packet->frame.size = packet_size;
     lifx_packet->frame.protocol = 1024;
     lifx_packet->frame.addressable = true;
     lifx_packet->frame.source = source_value;
@@ -106,10 +118,12 @@ void lifx_send_packet(lifx_device_t *target_device, uint16_t packet_type, void *
     if (target_device != NULL) {
         memcpy(lifx_packet->address.mac, target_device->mac, 6);
         target_device->last_send = lifx_get_time_ms();
-        lifx_send_outgoing_packet(packet_data, lifx_packet->frame.size, target_device->ipv4, target_device->port);
+        lifx_flip_header(lifx_packet);
+        lifx_send_outgoing_packet(packet_data, packet_size, target_device->ipv4, target_device->port);
     } else {
         lifx_packet->frame.tagged = true;
-        lifx_send_outgoing_packet(packet_data, lifx_packet->frame.size, LIFX_BROADCAST_IPV4, LIFX_BROADCAST_PORT);
+        lifx_flip_header(lifx_packet);
+        lifx_send_outgoing_packet(packet_data, packet_size, LIFX_BROADCAST_IPV4, LIFX_BROADCAST_PORT);
     }
 }
 
@@ -137,6 +151,7 @@ void lifx_handle_incoming_packet(uint8_t *packet, size_t length, uint32_t ipv4, 
 {
     uint64_t time_now = lifx_get_time_ms();
     lifx_header_t *header = (lifx_header_t *)packet;
+    lifx_flip_header(header);
     // sanity check - the size must match that of the one in the header
     if (length < sizeof(lifx_header_t) || length != header->frame.size)
         return;
@@ -154,7 +169,7 @@ void lifx_handle_incoming_packet(uint8_t *packet, size_t length, uint32_t ipv4, 
         if (device == NULL)
             return;
         device->ipv4 = ipv4;
-        device->port = service->port;
+        device->port = LE(service->port);
         device->service = service->service;
         device->first_update = time_now;
         device->last_update = time_now;
@@ -183,16 +198,16 @@ void lifx_handle_incoming_packet(uint8_t *packet, size_t length, uint32_t ipv4, 
                 return;
             lifx_state_host_firmware_t *fw = (lifx_state_host_firmware_t *)(packet + sizeof(lifx_header_t));
             device->version.build = fw->timestamp;
-            device->version.major = fw->version_major;
-            device->version.minor = fw->version_minor;
+            device->version.major = LE16(fw->version_major);
+            device->version.minor = LE16(fw->version_minor);
             return;
         case LIFX_PT_STATEVERSION:
             // sanity check the packet size
             if ((header->frame.size - sizeof(lifx_header_t)) != sizeof(lifx_state_version_t))
                 return;
             lifx_state_version_t *ver = (lifx_state_version_t *)(packet + sizeof(lifx_header_t));
-            device->vendor = ver->vendor;
-            device->product = ver->product;
+            device->vendor = LE(ver->vendor);
+            device->product = LE(ver->product);
             device->is_light = lifx_product_is_light(device->product);
             if (device->is_light)
                 lifx_poll_light(device);
@@ -211,11 +226,11 @@ void lifx_handle_incoming_packet(uint8_t *packet, size_t length, uint32_t ipv4, 
             if ((header->frame.size - sizeof(lifx_header_t)) != sizeof(lifx_light_state_t))
                 return;
             lifx_light_state_t *light = (lifx_light_state_t *)(packet + sizeof(lifx_header_t));
-            device->light.kelvin = light->kelvin;
-            device->light.power = light->power;
-            device->light.brightness = (double)light->brightness / 0xFFFF;
-            device->light.saturation = (double)light->saturation / 0xFFFF;
-            device->light.hue = (((double)light->hue) * 360) / 0x10000;
+            device->light.kelvin = LE16(light->kelvin);
+            device->light.power = LE16(light->power);
+            device->light.brightness = (double)LE16(light->brightness) / 0xFFFF;
+            device->light.saturation = (double)LE16(light->saturation) / 0xFFFF;
+            device->light.hue = (((double)LE16(light->hue)) * 360) / 0x10000;
             memcpy(device->label, light->label, 32);
             return;
         case LIFX_PT_STATELIGHTPOWER:
@@ -223,7 +238,7 @@ void lifx_handle_incoming_packet(uint8_t *packet, size_t length, uint32_t ipv4, 
             if ((header->frame.size - sizeof(lifx_header_t)) != sizeof(lifx_state_light_power_t))
                 return;
             lifx_state_light_power_t *power = (lifx_state_light_power_t *)(packet + sizeof(lifx_header_t));
-            device->light.power = power->level;
+            device->light.power = LE16(power->level);
             return;
     }
 }
@@ -305,11 +320,11 @@ void lifx_set_light_color(lifx_device_t *device, double hue, double saturation, 
     lifx_set_color_t set_color;
     if (device == NULL || !device->in_use || !device->is_light)
         return;
-    set_color.hue = (int)((0x10000 * hue) / 360) % 0x10000;
-    set_color.saturation = saturation * 0xFFFF;
-    set_color.brightness = brightness * 0xFFFF;
-    set_color.kelvin = kelvin;
-    set_color.time_ms = time;
+    set_color.hue = LE16((int)((0x10000 * hue) / 360) % 0x10000);
+    set_color.saturation = LE16((uint16_t)(saturation * 0xFFFF));
+    set_color.brightness = LE16((uint16_t)(brightness * 0xFFFF));
+    set_color.kelvin = LE16(kelvin);
+    set_color.time_ms = LE(time);
     lifx_send_packet(device, LIFX_PT_SETCOLOR, &set_color, sizeof(set_color));
     return;
 }
@@ -335,8 +350,8 @@ void lifx_set_light_powered(lifx_device_t *device, bool powered, uint32_t time)
     lifx_set_light_power_t set_power;
     if (device == NULL || !device->in_use || !device->is_light)
         return;
-    set_power.power = powered ? 0xFFFF : 0;
-    set_power.time_ms = time;
+    set_power.power = LE16(powered ? 0xFFFF : 0);
+    set_power.time_ms = LE(time);
     lifx_send_packet(device, LIFX_PT_SETLIGHTPOWER, &set_power, sizeof(set_power));
     return;
 }

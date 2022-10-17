@@ -1,6 +1,6 @@
 # liblifx
 
-A **very work-in-progress** C library for interacting with LIFX smart devices. It aims to eventually be compatible with desktop operating systems as well as embedded platforms. Currently will only build as-is for macOS, but should work on Linux and Windows with minor changes to the Makefile.
+A **very work-in-progress** C library for interacting with LIFX smart devices. It aims to eventually be compatible with desktop operating systems as well as embedded platforms. Currently will only build as-is for macOS, but should work on Linux (and possibly Windows) with minor changes to the Makefile.
 
 ## Example
 
@@ -13,7 +13,6 @@ See samples/discovery/discovery.c for an example of searching for devices and ge
 * add a functioning cross-platform (Mac/Linux/Windows) build script/Makefile/whatever.
     * (would be nice to output an .a/.lib file for static linking)
 * write docs.
-* support for running on big endian platforms.
 * properly test on embedded platforms.
 * support older C standards, rely on less stdlib functions.
 

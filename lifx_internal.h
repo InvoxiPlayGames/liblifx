@@ -2,7 +2,14 @@
 #define LIFX_INTERNAL_H_
 
 #include <stdint.h>
-#include <uuid/uuid.h>
+
+#ifdef LIFX_BIG_ENDIAN
+#define LE16(i) (((((i) & 0xFF) << 8) | (((i) >> 8) & 0xFF)) & 0xFFFF)
+#define LE(i)   (((i & 0xff000000) >> 24) | ((i & 0x00ff0000) >> 8) | ((i & 0x0000ff00) << 8) | (i << 24))
+#else
+#define LE16(i) (i)
+#define LE(i)   (i)
+#endif
 
 #define LIFX_MAX_DEVICE_COUNT 16
 #define LIFX_BROADCAST_IPV4 0xFFFFFFFF // 255.255.255.255
@@ -17,7 +24,7 @@ typedef struct _lifx_version_t
 
 typedef struct _lifx_section_t
 {
-    uuid_t uuid;
+    uint8_t uuid[16];
     uint64_t timestamp;
     char label[32];
     char terminator;

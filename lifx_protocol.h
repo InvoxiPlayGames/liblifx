@@ -11,6 +11,10 @@
 #include <stdbool.h>
 #include <assert.h>
 
+#ifndef static_assert // hack to silence compiler errors
+#define static_assert(...)
+#endif
+
 #define PACKED __attribute__((packed))
 
 typedef enum _lifx_packet_type_t
@@ -67,10 +71,17 @@ typedef enum _lifx_packet_type_t
 typedef struct _lifx_frame_header_t
 {
     uint16_t size;
+#ifndef LIFX_BIG_ENDIAN
     uint16_t protocol : 12;
     bool addressable : 1;
     bool tagged : 1;
     uint8_t origin : 2;
+#else // big endian platforms are in a different order
+    uint8_t origin : 2;
+    bool tagged : 1;
+    bool addressable : 1;
+    uint16_t protocol : 12;
+#endif
     uint32_t source;
 } PACKED lifx_frame_header_t;
 static_assert(sizeof(lifx_frame_header_t) == 8, "frame header size");
@@ -79,9 +90,15 @@ typedef struct _lifx_frame_address_t
 {
     uint8_t mac[8];
     uint8_t lifxv2[6];
+#ifndef LIFX_BIG_ENDIAN
     bool res_required : 1;
     bool ack_required : 1;
     uint8_t reserved : 6;
+#else // big endian platforms are in a different order
+    uint8_t reserved : 6;
+    bool ack_required : 1;
+    bool res_required : 1;
+#endif
     uint8_t sequence;
 } PACKED lifx_frame_address_t;
 static_assert(sizeof(lifx_frame_address_t) == 16, "frame address size");

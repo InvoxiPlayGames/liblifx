@@ -1,5 +1,5 @@
 TARGET  = liblifx.dylib
-CFLAGS  += -O1 -Wall -g -fstack-protector-all -Iinclude
+CFLAGS  += -O1 -Wall -g -fstack-protector-all -Iinclude -fPIC
 LDFLAGS += -shared
 SOURCES = lifx.c
 HEADERS = lifx_internal.h lifx_products.h lifx_protocol.h
@@ -7,7 +7,7 @@ HEADERS = lifx_internal.h lifx_products.h lifx_protocol.h
 all: $(TARGET)
 
 $(TARGET): $(SOURCES) $(HEADERS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES)
+	$(CC) $(CFLAGS) -o $@ $(SOURCES) $(LDFLAGS) 
 
 clean: clean_samples
 	rm -f -- $(TARGET)

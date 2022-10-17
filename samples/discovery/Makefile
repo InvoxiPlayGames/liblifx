@@ -6,7 +6,7 @@ SOURCES = discovery.c
 all: $(TARGET)
 
 $(TARGET): $(SOURCES)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES)
+	$(CC) $(CFLAGS) -o $@ $(SOURCES) $(LDFLAGS)
 
 clean:
 	rm -f -- $(TARGET)
